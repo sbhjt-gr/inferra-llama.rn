@@ -1,6 +1,6 @@
 {
   "name": "inferra-llama",
-  "version": "1.8.3",
+  "version": "1.8.6",
   "description": "React Native binding of llama.cpp for Inferra",
   "main": "lib/commonjs/index",
   "module": "lib/module/index",
