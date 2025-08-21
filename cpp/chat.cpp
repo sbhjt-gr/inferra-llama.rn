@@ -134,6 +134,7 @@ struct templates_params {
     json extra_context;
     bool add_bos;
     bool add_eos;
+    bool is_inference = true;
 };
 
 common_chat_tool_choice common_chat_tool_choice_parse_oaicompat(const std::string & tool_choice) {
@@ -619,7 +620,6 @@ const char * common_reasoning_format_name(common_reasoning_format format) {
         case COMMON_REASONING_FORMAT_AUTO:     return "auto";
         case COMMON_REASONING_FORMAT_DEEPSEEK: return "deepseek";
         case COMMON_REASONING_FORMAT_DEEPSEEK_LEGACY: return "deepseek-legacy";
-        case COMMON_REASONING_FORMAT_GRANITE: return "granite";
         default:
             throw std::runtime_error("Unknown reasoning format");
     }
@@ -1323,6 +1323,17 @@ static void common_chat_parse_deepseek_r1(common_chat_msg_parser & builder) {
 static common_chat_params common_chat_params_init_gpt_oss(const common_chat_template & tmpl, const struct templates_params & inputs) {
     common_chat_params data;
     auto prompt = apply(tmpl, inputs);
+
+    // Check if we need to replace the return token with end token during
+    // inference and without generation prompt. For more details see:
+    // https://github.com/ggml-org/llama.cpp/issues/15417
+    if (inputs.is_inference && !inputs.add_generation_prompt) {
+        static constexpr std::string_view return_token = "<|return|>";
+        static constexpr std::string_view end_token    = "<|end|>";
+        if (size_t pos = prompt.rfind(return_token); pos != std::string::npos) {
+            prompt.replace(pos, return_token.length(), end_token);
+        }
+    }
 
     data.prompt = prompt;
     data.format = COMMON_CHAT_FORMAT_GPT_OSS;
@@ -2048,8 +2059,8 @@ static common_chat_params common_chat_templates_apply_jinja(
     params.enable_thinking = inputs.enable_thinking;
     params.grammar = inputs.grammar;
     params.now = inputs.now;
-    params.add_bos = inputs.add_bos;
-    params.add_eos = inputs.add_eos;
+    params.add_bos = tmpls->add_bos;
+    params.add_eos = tmpls->add_eos;
 
     params.extra_context = json::object();
     for (auto el : inputs.chat_template_kwargs) {
